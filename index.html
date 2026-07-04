@@ -3,272 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Pinch Plant Tracker</title>
+    <title>Marvel AI Superpowers</title>
     
-    <!-- Load Three.js -->
+    <!-- Three.js for High CGI Effects -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
-    <!-- Load MediaPipe for Hand Tracking -->
+    <!-- MediaPipe for Hand Tracking -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: sans-serif; }
 
-        /* Mirrored webcam */
+        /* Mirrored Webcam Feed */
         .input_video {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            object-fit: cover; transform: scaleX(-1); opacity: 0.6; z-index: 1;
+            object-fit: cover; transform: scaleX(-1); opacity: 0.5; z-index: 1;
+            filter: contrast(1.2) saturate(1.2);
         }
 
-        #canvas-container {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none;
+        /* 2D Canvas for Neon Drawing */
+        #drawing-canvas {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 2; pointer-events: none; transform: scaleX(-1);
         }
 
-        /* SVG for the dotted lines */
-        #svg-layer {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 3; pointer-events: none;
+        /* 3D Canvas for Marvel Superpower Orb */
+        #cgi-container {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 3; pointer-events: none;
         }
 
-        /* Top Left UI */
-        #debug-panel {
-            position: absolute; top: 15px; left: 15px;
-            background: rgba(30, 30, 40, 0.8); backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-            color: #fff; padding: 12px 15px; font-size: 13px; font-weight: 500;
-            z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            display: flex; flex-direction: column; gap: 5px;
-        }
-        .val-row { display: flex; justify-content: space-between; gap: 15px; }
-        .val-row span { font-family: monospace; color: #a3a3c2; }
-
-        /* Finger Labels */
-        .finger-label {
-            position: absolute;
-            background: rgba(20, 20, 20, 0.9);
-            color: #fff; padding: 6px 12px; border-radius: 6px;
-            font-size: 12px; font-weight: bold;
-            pointer-events: none; z-index: 10; display: none;
-            transform: translate(20px, -20px);
-            border: 1px solid rgba(255,255,255,0.2);
-            white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        /* Cinematic Vignette */
+        #vignette {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle, transparent 50%, #000 120%);
+            z-index: 4; pointer-events: none;
         }
 
-        /* Tracking Dots */
-        .dot {
-            position: absolute; width: 10px; height: 10px; border-radius: 50%;
-            transform: translate(-50%, -50%); z-index: 4; display: none;
+        /* UI Overlay */
+        #ui-panel {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            background: rgba(10, 10, 15, 0.7); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 0, 255, 0.3); border-radius: 12px;
+            color: #fff; padding: 15px 20px; text-transform: uppercase;
+            letter-spacing: 2px; font-size: 12px; font-weight: bold;
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.2);
         }
-        #dot-left-index, #dot-left-thumb { background: #ff3385; box-shadow: 0 0 8px #ff3385; }
-        #dot-right-index, #dot-right-thumb { background: #33cc66; box-shadow: 0 0 8px #33cc66; }
 
-        .pink-text { color: #ff66a3; }
-        .green-text { color: #66ff99; }
-
+        .status { color: #ff00ff; }
+        
         #loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; z-index: 20;
+            color: #fff; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px;
+            z-index: 20; letter-spacing: 3px; border: 1px solid #ff00ff;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading">Starting AI Tracking... (Please allow camera)</div>
+    <div id="loading">CALIBRATING MAGIC... (Allow Camera)</div>
 
-    <!-- UI Panel -->
-    <div id="debug-panel">
-        <div class="val-row">Bloom: <span id="val-bloom">0.00</span></div>
-        <div class="val-row">Grow: <span id="val-grow">0.00</span></div>
-        <div class="val-row">Wind: <span id="val-wind">0.00</span></div>
+    <div id="ui-panel">
+        <div>System: <span class="status">Active</span></div>
+        <div>Mode: <span id="mode-text" class="status">Waiting...</span></div>
+        <div style="font-size: 9px; color: #888; margin-top: 5px;">1 Hand = Draw | 2 Hands = Superpower</div>
     </div>
-    
-    <!-- Finger Labels -->
-    <div id="label-left" class="finger-label"><span class="pink-text">🌸 Left Hand:</span> Bloom</div>
-    <div id="label-right" class="finger-label"><span class="green-text">🌱 Right Hand:</span> Grow</div>
 
-    <!-- Finger Dots -->
-    <div id="dot-left-index" class="dot"></div><div id="dot-left-thumb" class="dot"></div>
-    <div id="dot-right-index" class="dot"></div><div id="dot-right-thumb" class="dot"></div>
-
-    <!-- Video, SVG Lines & 3D Canvas -->
+    <!-- Layers -->
     <video class="input_video" autoplay playsinline></video>
-    
-    <svg id="svg-layer">
-        <line id="line-left" stroke="#ff3385" stroke-width="2" stroke-dasharray="6,6" x1="0" y1="0" x2="0" y2="0" display="none" />
-        <line id="line-right" stroke="#33cc66" stroke-width="2" stroke-dasharray="6,6" x1="0" y1="0" x2="0" y2="0" display="none" />
-    </svg>
-
-    <div id="canvas-container"></div>
+    <canvas id="drawing-canvas"></canvas>
+    <div id="cgi-container"></div>
+    <div id="vignette"></div>
 
     <script>
-        // --- 1. SETUP THREE.JS SCENE ---
-        const container = document.getElementById('canvas-container');
+        // --- 1. SETUP 2D DRAWING CANVAS (Neon Line) ---
+        const drawCanvas = document.getElementById('drawing-canvas');
+        const ctx = drawCanvas.getContext('2d');
+        drawCanvas.width = window.innerWidth;
+        drawCanvas.height = window.innerHeight;
+
+        // Neon Glow Settings
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = '#ff00ff'; // Neon Pink/Purple
+        ctx.strokeStyle = '#fff'; // White core of the laser
+        
+        let lastX = 0, lastY = 0;
+        let isDrawing = false;
+
+
+        // --- 2. SETUP THREE.JS (Marvel CGI Energy Orb) ---
+        const cgiContainer = document.getElementById('cgi-container');
         const scene = new THREE.Scene();
         
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 3, 15);
+        // Orthographic camera makes it easier to map screen coordinates to 3D space
+        const aspect = window.innerWidth / window.innerHeight;
+        const camera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 100);
+        camera.position.z = 10;
 
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement);
+        cgiContainer.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0xffffff, 0.8);
-        pointLight.position.set(5, 10, 5);
-        scene.add(pointLight);
+        // -- Build the Magic Orb --
+        const orbGroup = new THREE.Group();
+        scene.add(orbGroup);
+        orbGroup.visible = false; // Hidden until 2 hands are detected
 
-        // --- 2. BUILD THE BRANCHING PLANT ---
-        const plantBase = new THREE.Group();
-        plantBase.position.y = -5; // Start near bottom
-        scene.add(plantBase);
-
-        // Materials (Neon glowing look)
-        const stemMat = new THREE.MeshPhongMaterial({ color: 0x33cc33, shininess: 100 });
-        const flowerMat = new THREE.MeshStandardMaterial({ 
-            color: 0xff1a75, 
-            emissive: 0xcc0052, 
-            emissiveIntensity: 0.8,
-            transparent: true, 
-            opacity: 0.9,
-            roughness: 0.2
+        // Core glowing sphere
+        const coreGeo = new THREE.SphereGeometry(0.2, 32, 32);
+        const coreMat = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff, transparent: true, opacity: 0.9 
         });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        orbGroup.add(core);
 
-        // Main Stem
-        const stemGeo = new THREE.CylinderGeometry(0.06, 0.12, 10, 16);
-        stemGeo.translate(0, 5, 0); // Move pivot to bottom
-        const mainStem = new THREE.Mesh(stemGeo, stemMat);
-        plantBase.add(mainStem);
+        // Outer Aura (Additive Blending makes it look like light/fire)
+        const auraGeo = new THREE.SphereGeometry(0.3, 32, 32);
+        const auraMat = new THREE.MeshBasicMaterial({ 
+            color: 0xff00aa, transparent: true, opacity: 0.5,
+            blending: THREE.AdditiveBlending 
+        });
+        const aura = new THREE.Mesh(auraGeo, auraMat);
+        orbGroup.add(aura);
 
-        const allFlowerClusters = []; // Keep track to animate bloom
-
-        // Function to create puffy flower clusters
-        function createFlowerCluster(parent, yPos, xRot, zRot) {
-            const cluster = new THREE.Group();
-            cluster.position.y = yPos;
-            cluster.rotation.set(xRot, 0, zRot);
-            
-            // Create overlapping spheres to match the video's puffy flowers
-            const sphereGeo = new THREE.SphereGeometry(0.5, 32, 32);
-            const positions = [
-                [0, 0, 0], [0.3, 0.3, 0], [-0.3, 0.3, 0], 
-                [0, 0.3, 0.3], [0, 0.3, -0.3], [0, 0.6, 0]
-            ];
-
-            positions.forEach(pos => {
-                const petal = new THREE.Mesh(sphereGeo, flowerMat);
-                petal.position.set(...pos);
-                // Squish spheres slightly to look like petals
-                petal.scale.set(1, 1.2, 0.8);
-                cluster.add(petal);
+        // Magic Rings (Doctor Strange Style)
+        const rings = [];
+        for(let i=0; i<3; i++) {
+            const ringGeo = new THREE.TorusGeometry(0.4 + (i*0.1), 0.01, 16, 100);
+            const ringMat = new THREE.MeshBasicMaterial({ 
+                color: 0xff00ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending 
             });
-
-            parent.add(cluster);
-            allFlowerClusters.push(cluster);
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.random() * Math.PI;
+            ring.rotation.y = Math.random() * Math.PI;
+            rings.push(ring);
+            orbGroup.add(ring);
         }
 
-        // Function to add branches
-        function addBranch(yOffset, length, rotZ) {
-            const branchGroup = new THREE.Group();
-            branchGroup.position.y = yOffset;
-            branchGroup.rotation.z = rotZ;
-
-            const branchGeo = new THREE.CylinderGeometry(0.03, 0.06, length, 8);
-            branchGeo.translate(0, length/2, 0);
-            const branch = new THREE.Mesh(branchGeo, stemMat);
-            branchGroup.add(branch);
-
-            createFlowerCluster(branchGroup, length, 0, -rotZ); // Straighten flower
-            mainStem.add(branchGroup);
+        // Energy Particles
+        const particleGeo = new THREE.BufferGeometry();
+        const particleCount = 200;
+        const posArray = new Float32Array(particleCount * 3);
+        for(let i=0; i<particleCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 1.5;
         }
-
-        // Top main flower
-        createFlowerCluster(mainStem, 10, 0, 0);
-        
-        // Add side branches (similar to the video structure)
-        addBranch(3, 3, 0.8);
-        addBranch(5, 2.5, -0.7);
-        addBranch(7, 2, 0.9);
-        addBranch(2, 3.5, -0.9);
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.02, color: 0xff88ff, transparent: true, blending: THREE.AdditiveBlending
+        });
+        const particles = new THREE.Points(particleGeo, particleMat);
+        orbGroup.add(particles);
 
 
-        // --- 3. MEDIAPIPE AI SETUP & PINCH LOGIC ---
+        // --- 3. MEDIAPIPE AI LOGIC ---
         const videoElement = document.querySelector('.input_video');
-        const lineLeft = document.getElementById('line-left');
-        const lineRight = document.getElementById('line-right');
-        
-        // Target values for smooth Lerping
-        let targetGrow = 0.1;
-        let targetBloom = 0.1;
-        let currentGrow = 0.1;
-        let currentBloom = 0.1;
-        let windTime = 0;
+        const modeText = document.getElementById('mode-text');
 
-        function updateUI(handType, indexX, indexY, thumbX, thumbY, distance) {
-            // Convert normalized coordinates to screen pixels
-            const iX = indexX * window.innerWidth;
-            const iY = indexY * window.innerHeight;
-            const tX = thumbX * window.innerWidth;
-            const tY = thumbY * window.innerHeight;
-
-            // Map pinch distance (0.02 is closed, 0.2 is wide open)
-            // Clamp value between 0.05 and 1.0 for 3D scaling
-            let mappedVal = Math.max(0.05, Math.min(1, (distance - 0.02) / 0.18));
-
-            if (handType === 'Right') {
-                targetGrow = mappedVal;
-                
-                // Update Lines & Dots
-                lineRight.setAttribute('x1', iX); lineRight.setAttribute('y1', iY);
-                lineRight.setAttribute('x2', tX); lineRight.setAttribute('y2', tY);
-                lineRight.style.display = 'block';
-                
-                document.getElementById('dot-right-index').style.cssText = `display:block; left:${iX}px; top:${iY}px;`;
-                document.getElementById('dot-right-thumb').style.cssText = `display:block; left:${tX}px; top:${tY}px;`;
-                
-                // Update Label near index finger
-                const lblRight = document.getElementById('label-right');
-                lblRight.style.display = 'block';
-                lblRight.style.left = `${iX}px`; lblRight.style.top = `${iY}px`;
-
-            } else {
-                targetBloom = mappedVal;
-
-                lineLeft.setAttribute('x1', iX); lineLeft.setAttribute('y1', iY);
-                lineLeft.setAttribute('x2', tX); lineLeft.setAttribute('y2', tY);
-                lineLeft.style.display = 'block';
-                
-                document.getElementById('dot-left-index').style.cssText = `display:block; left:${iX}px; top:${iY}px;`;
-                document.getElementById('dot-left-thumb').style.cssText = `display:block; left:${tX}px; top:${tY}px;`;
-
-                const lblLeft = document.getElementById('label-left');
-                lblLeft.style.display = 'block';
-                lblLeft.style.left = `${iX}px`; lblLeft.style.top = `${iY}px`;
-            }
-        }
+        // Target variables for smooth Lerp animation
+        let targetOrbPos = new THREE.Vector3(0, 0, 0);
+        let targetOrbScale = 1;
+        let currentOrbScale = 0;
 
         function onResults(results) {
             document.getElementById('loading').style.display = 'none';
 
-            // Reset UI visibility each frame
-            lineLeft.style.display = 'none'; lineRight.style.display = 'none';
-            document.getElementById('label-left').style.display = 'none';
-            document.getElementById('label-right').style.display = 'none';
-            document.querySelectorAll('.dot').forEach(el => el.style.display = 'none');
+            // Fade the drawing canvas very slowly (creates a trail effect)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
+            ctx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-            if (results.multiHandLandmarks) {
-                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-                    const landmarks = results.multiHandLandmarks[i];
-                    const handType = results.multiHandedness[i].label; 
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                
+                // --- MODE 1: DRAWING (1 Hand Detected) ---
+                if (results.multiHandLandmarks.length === 1) {
+                    modeText.innerText = "NEON DRAWING";
+                    orbGroup.visible = false; // Hide CGI orb
+
+                    const indexFinger = results.multiHandLandmarks[0][8];
                     
-                    const index = landmarks[8];
-                    const thumb = landmarks[4];
+                    // Map AI coordinates to Canvas (Mirrored)
+                    const x = indexFinger.x * drawCanvas.width;
+                    const y = indexFinger.y * drawCanvas.height;
 
-                    // Calculate 2D distance between index and thumb (Pinch)
-                    const dist = Math.hypot(index.x - thumb.x, index.y - thumb.y);
+                    if (!isDrawing) {
+                        lastX = x; lastY = y;
+                        isDrawing = true;
+                    }
 
-                    updateUI(handType, index.x, index.y, thumb.x, thumb.y, dist);
+                    // Calculate drawing speed to change line thickness
+                    const speed = Math.hypot(x - lastX, y - lastY);
+                    ctx.lineWidth = Math.max(3, 15 - (speed * 0.2)); 
+                    ctx.shadowBlur = ctx.lineWidth * 2;
+
+                    // Draw Line
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+
+                    lastX = x; lastY = y;
+                } 
+                
+                // --- MODE 2: SUPERPOWER (2 Hands Detected) ---
+                else if (results.multiHandLandmarks.length === 2) {
+                    modeText.innerText = "CGI MAGIC ORB";
+                    isDrawing = false; // Stop drawing
+
+                    // Get palms (landmark 9) of both hands
+                    const hand1 = results.multiHandLandmarks[0][9];
+                    const hand2 = results.multiHandLandmarks[1][9];
+
+                    // Calculate midpoint between hands
+                    const midX = (hand1.x + hand2.x) / 2;
+                    const midY = (hand1.y + hand2.y) / 2;
+
+                    // Calculate distance between hands (for scale)
+                    const dist = Math.hypot(hand1.x - hand2.x, hand1.y - hand2.y);
+
+                    // Map AI screen coordinates to Three.js Orthographic space
+                    // We flip the X axis because the camera is mirrored
+                    const mappedX = -((midX * 2) - 1) * aspect; 
+                    const mappedY = -((midY * 2) - 1);
+
+                    targetOrbPos.set(mappedX, mappedY, 0);
+                    
+                    // Scale the orb based on how far apart hands are
+                    targetOrbScale = Math.max(0.5, dist * 5); 
+                    orbGroup.visible = true;
                 }
+            } else {
+                // No hands detected
+                isDrawing = false;
+                orbGroup.visible = false;
+                modeText.innerText = "SEARCHING...";
             }
         }
 
@@ -277,8 +245,7 @@
             maxNumHands: 2,
             modelComplexity: 1,
             minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6,
-            selfieMode: true
+            minTrackingConfidence: 0.6
         });
         hands.onResults(onResults);
 
@@ -289,40 +256,48 @@
         cameraFeed.start();
 
 
-        // --- 4. ANIMATION & LERPING (Buttery Smooth) ---
+        // --- 4. CGI ANIMATION LOOP ---
+        const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
 
-            // Lerp handles the smooth, jitter-free lag effect
-            currentGrow += (targetGrow - currentGrow) * 0.1;
-            currentBloom += (targetBloom - currentBloom) * 0.1;
+            if (orbGroup.visible) {
+                // Smoothly Lerp position and scale so it doesn't jitter
+                orbGroup.position.lerp(targetOrbPos, 0.15);
+                currentOrbScale += (targetOrbScale - currentOrbScale) * 0.1;
+                orbGroup.scale.set(currentOrbScale, currentOrbScale, currentOrbScale);
 
-            // 1. Grow Plant (Uniform scale based on Right Hand pinch)
-            plantBase.scale.set(currentGrow, currentGrow, currentGrow);
+                // Rotate rings chaotically (Doctor Strange style)
+                rings[0].rotation.x += 2 * delta;
+                rings[1].rotation.y -= 3 * delta;
+                rings[2].rotation.z += 1.5 * delta;
+                rings[2].rotation.x += 1 * delta;
 
-            // 2. Bloom Flowers (Scale clusters based on Left Hand pinch)
-            // Offset a tiny bit so they don't invert or disappear completely
-            const bloomScale = Math.max(0.01, currentBloom * 1.5);
-            allFlowerClusters.forEach(cluster => {
-                cluster.scale.set(bloomScale, bloomScale, bloomScale);
-            });
+                // Pulsate core and aura
+                const pulse = Math.sin(time * 5) * 0.1;
+                core.scale.set(1 + pulse, 1 + pulse, 1 + pulse);
+                aura.scale.set(1 - pulse, 1 - pulse, 1 - pulse);
 
-            // 3. Gentle Wind Effect
-            windTime += 0.02;
-            const windNoise = Math.sin(windTime) * 0.05;
-            plantBase.rotation.z = windNoise; // Plant swaying
-            
-            // Update UI Numbers
-            document.getElementById('val-bloom').innerText = currentBloom.toFixed(2);
-            document.getElementById('val-grow').innerText = currentGrow.toFixed(2);
-            document.getElementById('val-wind').innerText = Math.abs(windNoise * 100).toFixed(2);
+                // Rotate particles
+                particles.rotation.y += 0.5 * delta;
+                particles.rotation.x += 0.2 * delta;
+            }
 
             renderer.render(scene, camera);
         }
         animate();
 
+        // Handle Window Resize
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            drawCanvas.width = window.innerWidth;
+            drawCanvas.height = window.innerHeight;
+            
+            const newAspect = window.innerWidth / window.innerHeight;
+            camera.left = -newAspect;
+            camera.right = newAspect;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
