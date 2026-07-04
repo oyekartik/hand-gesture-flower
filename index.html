@@ -3,249 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marvel AI Superpowers</title>
-    
-    <!-- Three.js for High CGI Effects -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>High CGI Magic Orb</title>
     
     <!-- MediaPipe for Hand Tracking -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
+    <!-- Import Maps for Modern Three.js & Post-Processing -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050505; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Courier New', Courier, monospace; }
 
         /* Mirrored Webcam Feed */
         .input_video {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            object-fit: cover; transform: scaleX(-1); opacity: 0.5; z-index: 1;
-            filter: contrast(1.2) saturate(1.2);
+            object-fit: cover; transform: scaleX(-1); opacity: 0.4; z-index: 1;
+            filter: contrast(1.3) saturate(0.8);
         }
 
-        /* 2D Canvas for Neon Drawing */
-        #drawing-canvas {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 2; pointer-events: none; transform: scaleX(-1);
-        }
-
-        /* 3D Canvas for Marvel Superpower Orb */
+        /* 3D Canvas */
         #cgi-container {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
             z-index: 3; pointer-events: none;
         }
 
-        /* Cinematic Vignette */
+        /* Cinematic Dark Edge Vignette */
         #vignette {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: radial-gradient(circle, transparent 50%, #000 120%);
-            z-index: 4; pointer-events: none;
+            background: radial-gradient(circle, transparent 40%, #000 110%);
+            z-index: 2; pointer-events: none;
         }
 
-        /* UI Overlay */
-        #ui-panel {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
-            background: rgba(10, 10, 15, 0.7); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 0, 255, 0.3); border-radius: 12px;
-            color: #fff; padding: 15px 20px; text-transform: uppercase;
-            letter-spacing: 2px; font-size: 12px; font-weight: bold;
-            box-shadow: 0 0 20px rgba(255, 0, 255, 0.2);
-        }
-
-        .status { color: #ff00ff; }
-        
         #loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #fff; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px;
-            z-index: 20; letter-spacing: 3px; border: 1px solid #ff00ff;
+            color: #ff00aa; text-align: center; font-size: 14px; letter-spacing: 4px;
+            text-transform: uppercase; z-index: 20; text-shadow: 0 0 10px #ff00aa;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading">CALIBRATING MAGIC... (Allow Camera)</div>
+    <div id="loading">INITIALIZING NEURAL NET<br><span style="font-size:10px; opacity:0.6">ALLOW CAMERA ACCESS</span></div>
 
-    <div id="ui-panel">
-        <div>System: <span class="status">Active</span></div>
-        <div>Mode: <span id="mode-text" class="status">Waiting...</span></div>
-        <div style="font-size: 9px; color: #888; margin-top: 5px;">1 Hand = Draw | 2 Hands = Superpower</div>
-    </div>
-
-    <!-- Layers -->
     <video class="input_video" autoplay playsinline></video>
-    <canvas id="drawing-canvas"></canvas>
-    <div id="cgi-container"></div>
     <div id="vignette"></div>
+    <div id="cgi-container"></div>
 
-    <script>
-        // --- 1. SETUP 2D DRAWING CANVAS (Neon Line) ---
-        const drawCanvas = document.getElementById('drawing-canvas');
-        const ctx = drawCanvas.getContext('2d');
-        drawCanvas.width = window.innerWidth;
-        drawCanvas.height = window.innerHeight;
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // Neon Glow Settings
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.shadowColor = '#ff00ff'; // Neon Pink/Purple
-        ctx.strokeStyle = '#fff'; // White core of the laser
-        
-        let lastX = 0, lastY = 0;
-        let isDrawing = false;
-
-
-        // --- 2. SETUP THREE.JS (Marvel CGI Energy Orb) ---
-        const cgiContainer = document.getElementById('cgi-container');
+        // --- 1. SETUP HIGH-END 3D SCENE ---
+        const container = document.getElementById('cgi-container');
         const scene = new THREE.Scene();
         
-        // Orthographic camera makes it easier to map screen coordinates to 3D space
+        // Orthographic camera makes 2D screen to 3D mapping perfect
         const aspect = window.innerWidth / window.innerHeight;
         const camera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 100);
         camera.position.z = 10;
 
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        cgiContainer.appendChild(renderer.domElement);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
 
-        // -- Build the Magic Orb --
+        // --- 2. CINEMATIC POST-PROCESSING (THE CGI SECRET) ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        // UnrealBloomPass creates the massive glowing magic effect
+        // Parameters: Resolution, Strength, Radius, Threshold
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 2.5, 0.8, 0.1);
+        composer.addPass(bloomPass);
+
+        // --- 3. BUILD THE MARVEL ORB ---
         const orbGroup = new THREE.Group();
         scene.add(orbGroup);
-        orbGroup.visible = false; // Hidden until 2 hands are detected
+        orbGroup.scale.set(0, 0, 0); // Start hidden
 
-        // Core glowing sphere
-        const coreGeo = new THREE.SphereGeometry(0.2, 32, 32);
-        const coreMat = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff, transparent: true, opacity: 0.9 
-        });
+        const COLOR_PRIMARY = 0xff00aa; // Neon Pink
+        const COLOR_CORE = 0xffffff;    // White
+        const COLOR_SECONDARY = 0xaa00ff; // Purple
+
+        // 3.1 The Bright Core
+        const coreGeo = new THREE.SphereGeometry(0.15, 32, 32);
+        const coreMat = new THREE.MeshBasicMaterial({ color: COLOR_CORE });
         const core = new THREE.Mesh(coreGeo, coreMat);
         orbGroup.add(core);
 
-        // Outer Aura (Additive Blending makes it look like light/fire)
-        const auraGeo = new THREE.SphereGeometry(0.3, 32, 32);
-        const auraMat = new THREE.MeshBasicMaterial({ 
-            color: 0xff00aa, transparent: true, opacity: 0.5,
-            blending: THREE.AdditiveBlending 
+        // 3.2 The Holographic Wireframe Globe
+        const globeGeo = new THREE.SphereGeometry(0.4, 16, 16);
+        const globeMat = new THREE.MeshBasicMaterial({ 
+            color: COLOR_SECONDARY, wireframe: true, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending 
         });
-        const aura = new THREE.Mesh(auraGeo, auraMat);
-        orbGroup.add(aura);
+        const globe = new THREE.Mesh(globeGeo, globeMat);
+        orbGroup.add(globe);
 
-        // Magic Rings (Doctor Strange Style)
+        // 3.3 Intricate Dashed Rings
         const rings = [];
-        for(let i=0; i<3; i++) {
-            const ringGeo = new THREE.TorusGeometry(0.4 + (i*0.1), 0.01, 16, 100);
-            const ringMat = new THREE.MeshBasicMaterial({ 
-                color: 0xff00ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending 
+        for(let i = 0; i < 4; i++) {
+            const ringGeo = new THREE.RingGeometry(0.5 + (i * 0.15), 0.52 + (i * 0.15), 64);
+            const edgesGeo = new THREE.EdgesGeometry(ringGeo);
+            
+            const ringMat = new THREE.LineDashedMaterial({
+                color: i % 2 === 0 ? COLOR_PRIMARY : COLOR_SECONDARY,
+                linewidth: 1, scale: 1, dashSize: 0.05, gapSize: 0.05,
+                transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending
             });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
+            
+            const ring = new THREE.LineSegments(edgesGeo, ringMat);
+            ring.computeLineDistances(); // Required for dashed lines to work
+            
+            // Random initial rotations
             ring.rotation.x = Math.random() * Math.PI;
             ring.rotation.y = Math.random() * Math.PI;
+            
             rings.push(ring);
             orbGroup.add(ring);
         }
 
-        // Energy Particles
-        const particleGeo = new THREE.BufferGeometry();
-        const particleCount = 200;
-        const posArray = new Float32Array(particleCount * 3);
-        for(let i=0; i<particleCount * 3; i++) {
-            posArray[i] = (Math.random() - 0.5) * 1.5;
-        }
-        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({
-            size: 0.02, color: 0xff88ff, transparent: true, blending: THREE.AdditiveBlending
-        });
-        const particles = new THREE.Points(particleGeo, particleMat);
-        orbGroup.add(particles);
+        // 3.4 Dynamic Energy Tendrils (Lightning) connecting to hands
+        const createTendril = () => {
+            const points = [];
+            for(let i=0; i<6; i++) points.push(new THREE.Vector3(0,0,0));
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ 
+                color: COLOR_PRIMARY, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending 
+            });
+            return new THREE.Line(geometry, material);
+        };
+        const tendrilLeft = createTendril();
+        const tendrilRight = createTendril();
+        scene.add(tendrilLeft);
+        scene.add(tendrilRight);
 
 
-        // --- 3. MEDIAPIPE AI LOGIC ---
+        // --- 4. AI HAND TRACKING LOGIC ---
         const videoElement = document.querySelector('.input_video');
-        const modeText = document.getElementById('mode-text');
-
-        // Target variables for smooth Lerp animation
         let targetOrbPos = new THREE.Vector3(0, 0, 0);
-        let targetOrbScale = 1;
+        let targetOrbScale = 0;
         let currentOrbScale = 0;
+        let leftHandPos = new THREE.Vector3();
+        let rightHandPos = new THREE.Vector3();
+        let isMagicActive = false;
 
         function onResults(results) {
             document.getElementById('loading').style.display = 'none';
 
-            // Fade the drawing canvas very slowly (creates a trail effect)
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
-            ctx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
+                isMagicActive = true;
                 
-                // --- MODE 1: DRAWING (1 Hand Detected) ---
-                if (results.multiHandLandmarks.length === 1) {
-                    modeText.innerText = "NEON DRAWING";
-                    orbGroup.visible = false; // Hide CGI orb
+                // Get palms (landmark 9) of both hands
+                const palm1 = results.multiHandLandmarks[0][9];
+                const palm2 = results.multiHandLandmarks[1][9];
 
-                    const indexFinger = results.multiHandLandmarks[0][8];
-                    
-                    // Map AI coordinates to Canvas (Mirrored)
-                    const x = indexFinger.x * drawCanvas.width;
-                    const y = indexFinger.y * drawCanvas.height;
+                // Calculate midpoint
+                const midX = (palm1.x + palm2.x) / 2;
+                const midY = (palm1.y + palm2.y) / 2;
 
-                    if (!isDrawing) {
-                        lastX = x; lastY = y;
-                        isDrawing = true;
-                    }
+                // Map screen to 3D space (Flip X for mirror)
+                const mappedMidX = -((midX * 2) - 1) * aspect; 
+                const mappedMidY = -((midY * 2) - 1);
+                targetOrbPos.set(mappedMidX, mappedMidY, 0);
 
-                    // Calculate drawing speed to change line thickness
-                    const speed = Math.hypot(x - lastX, y - lastY);
-                    ctx.lineWidth = Math.max(3, 15 - (speed * 0.2)); 
-                    ctx.shadowBlur = ctx.lineWidth * 2;
+                // Individual hand positions for lightning
+                leftHandPos.set(-((palm1.x * 2) - 1) * aspect, -((palm1.y * 2) - 1), 0);
+                rightHandPos.set(-((palm2.x * 2) - 1) * aspect, -((palm2.y * 2) - 1), 0);
 
-                    // Draw Line
-                    ctx.beginPath();
-                    ctx.moveTo(lastX, lastY);
-                    ctx.lineTo(x, y);
-                    ctx.stroke();
-
-                    lastX = x; lastY = y;
-                } 
+                // Scale based on distance between hands
+                const dist = Math.hypot(palm1.x - palm2.x, palm1.y - palm2.y);
+                targetOrbScale = Math.max(0.5, dist * 4);
                 
-                // --- MODE 2: SUPERPOWER (2 Hands Detected) ---
-                else if (results.multiHandLandmarks.length === 2) {
-                    modeText.innerText = "CGI MAGIC ORB";
-                    isDrawing = false; // Stop drawing
-
-                    // Get palms (landmark 9) of both hands
-                    const hand1 = results.multiHandLandmarks[0][9];
-                    const hand2 = results.multiHandLandmarks[1][9];
-
-                    // Calculate midpoint between hands
-                    const midX = (hand1.x + hand2.x) / 2;
-                    const midY = (hand1.y + hand2.y) / 2;
-
-                    // Calculate distance between hands (for scale)
-                    const dist = Math.hypot(hand1.x - hand2.x, hand1.y - hand2.y);
-
-                    // Map AI screen coordinates to Three.js Orthographic space
-                    // We flip the X axis because the camera is mirrored
-                    const mappedX = -((midX * 2) - 1) * aspect; 
-                    const mappedY = -((midY * 2) - 1);
-
-                    targetOrbPos.set(mappedX, mappedY, 0);
-                    
-                    // Scale the orb based on how far apart hands are
-                    targetOrbScale = Math.max(0.5, dist * 5); 
-                    orbGroup.visible = true;
-                }
+                tendrilLeft.visible = true;
+                tendrilRight.visible = true;
             } else {
-                // No hands detected
-                isDrawing = false;
-                orbGroup.visible = false;
-                modeText.innerText = "SEARCHING...";
+                // Shrink and hide if 2 hands aren't visible
+                targetOrbScale = 0;
+                isMagicActive = false;
+                tendrilLeft.visible = false;
+                tendrilRight.visible = false;
             }
         }
 
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
+            maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6
         });
         hands.onResults(onResults);
 
@@ -256,50 +209,80 @@
         cameraFeed.start();
 
 
-        // --- 4. CGI ANIMATION LOOP ---
+        // --- 5. ANIMATION & VFX LOOP ---
         const clock = new THREE.Clock();
+
+        // Helper to animate lightning bolts
+        function animateTendril(tendril, startVec, endVec) {
+            const positions = tendril.geometry.attributes.position.array;
+            for(let i=0; i<6; i++) {
+                // Interpolate from orb center (startVec) to hand (endVec)
+                const t = i / 5; 
+                let x = startVec.x + (endVec.x - startVec.x) * t;
+                let y = startVec.y + (endVec.y - startVec.y) * t;
+                let z = startVec.z + (endVec.z - startVec.z) * t;
+
+                // Add random jitter to middle points to look like electricity
+                if (i > 0 && i < 5) {
+                    x += (Math.random() - 0.5) * 0.3;
+                    y += (Math.random() - 0.5) * 0.3;
+                }
+
+                positions[i*3] = x;
+                positions[i*3+1] = y;
+                positions[i*3+2] = z;
+            }
+            tendril.geometry.attributes.position.needsUpdate = true;
+        }
 
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             const time = clock.getElapsedTime();
 
-            if (orbGroup.visible) {
-                // Smoothly Lerp position and scale so it doesn't jitter
-                orbGroup.position.lerp(targetOrbPos, 0.15);
-                currentOrbScale += (targetOrbScale - currentOrbScale) * 0.1;
-                orbGroup.scale.set(currentOrbScale, currentOrbScale, currentOrbScale);
+            // Smooth scaling (Lerp)
+            currentOrbScale += (targetOrbScale - currentOrbScale) * 0.15;
+            orbGroup.scale.set(currentOrbScale, currentOrbScale, currentOrbScale);
 
-                // Rotate rings chaotically (Doctor Strange style)
+            if (currentOrbScale > 0.01) {
+                // Smooth follow position
+                orbGroup.position.lerp(targetOrbPos, 0.2);
+
+                // Rotate components
+                globe.rotation.y += 0.5 * delta;
+                globe.rotation.x += 0.2 * delta;
+
                 rings[0].rotation.x += 2 * delta;
-                rings[1].rotation.y -= 3 * delta;
+                rings[1].rotation.y -= 2.5 * delta;
                 rings[2].rotation.z += 1.5 * delta;
                 rings[2].rotation.x += 1 * delta;
+                rings[3].rotation.y += 3 * delta;
+                rings[3].rotation.z -= 1 * delta;
 
-                // Pulsate core and aura
-                const pulse = Math.sin(time * 5) * 0.1;
+                // Animate electricity tendrils pointing to hands
+                if(isMagicActive && time % 0.05 < 0.02) { 
+                    // Update lightning geometry rapidly, but not every single frame
+                    animateTendril(tendrilLeft, orbGroup.position, leftHandPos);
+                    animateTendril(tendrilRight, orbGroup.position, rightHandPos);
+                }
+
+                // Pulsate core
+                const pulse = Math.sin(time * 8) * 0.1;
                 core.scale.set(1 + pulse, 1 + pulse, 1 + pulse);
-                aura.scale.set(1 - pulse, 1 - pulse, 1 - pulse);
-
-                // Rotate particles
-                particles.rotation.y += 0.5 * delta;
-                particles.rotation.x += 0.2 * delta;
             }
 
-            renderer.render(scene, camera);
+            // Render via composer for Bloom Effect!
+            composer.render();
         }
         animate();
 
         // Handle Window Resize
         window.addEventListener('resize', () => {
-            drawCanvas.width = window.innerWidth;
-            drawCanvas.height = window.innerHeight;
-            
             const newAspect = window.innerWidth / window.innerHeight;
-            camera.left = -newAspect;
-            camera.right = newAspect;
+            camera.left = -newAspect; camera.right = newAspect;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
     </script>
 </body>
