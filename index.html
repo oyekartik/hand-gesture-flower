@@ -3,328 +3,276 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Premium AI Bouquet</title>
+    <title>AI Pinch Plant Tracker</title>
     
     <!-- Load Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <!-- Load MediaPipe for Hand Tracking -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
-    <!-- Premium Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
-
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #050505;
-            font-family: 'Inter', sans-serif;
-        }
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
-        /* Mirrored webcam background with a premium dark vignette */
+        /* Mirrored webcam */
         .input_video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-            transform: scaleX(-1);
-            z-index: 1;
-            opacity: 0.5;
-            filter: grayscale(30%) contrast(1.2);
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            object-fit: cover; transform: scaleX(-1); opacity: 0.6; z-index: 1;
         }
 
-        #vignette {
-            position: absolute;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: radial-gradient(circle, transparent 40%, #000 120%);
-            z-index: 2;
-            pointer-events: none;
-        }
-
-        /* 3D Canvas */
         #canvas-container {
-            position: absolute;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 3;
-            pointer-events: none;
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none;
         }
 
-        /* Glassmorphism UI */
+        /* SVG for the dotted lines */
+        #svg-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 3; pointer-events: none;
+        }
+
+        /* Top Left UI */
         #debug-panel {
-            position: absolute;
-            top: 30px;
-            left: 30px;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.9);
-            padding: 20px 25px;
-            border-radius: 16px;
-            z-index: 10;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            font-size: 11px;
-            font-weight: 500;
+            position: absolute; top: 15px; left: 15px;
+            background: rgba(30, 30, 40, 0.8); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+            color: #fff; padding: 12px 15px; font-size: 13px; font-weight: 500;
+            z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; gap: 5px;
         }
+        .val-row { display: flex; justify-content: space-between; gap: 15px; }
+        .val-row span { font-family: monospace; color: #a3a3c2; }
 
-        #debug-panel div { margin-bottom: 8px; }
-        #debug-panel div:last-child { margin-bottom: 0; }
-        #debug-panel span { font-weight: 700; color: #ff80bf; float: right; margin-left: 20px;}
-
+        /* Finger Labels */
         .finger-label {
             position: absolute;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            color: #fff;
-            padding: 8px 16px;
-            border-radius: 30px;
-            font-size: 13px;
-            font-weight: 500;
-            pointer-events: none;
-            z-index: 10;
-            display: none;
-            transform: translate(-50%, -150%);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            white-space: nowrap;
-            transition: opacity 0.3s;
+            background: rgba(20, 20, 20, 0.9);
+            color: #fff; padding: 6px 12px; border-radius: 6px;
+            font-size: 12px; font-weight: bold;
+            pointer-events: none; z-index: 10; display: none;
+            transform: translate(20px, -20px);
+            border: 1px solid rgba(255,255,255,0.2);
+            white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        .highlight { color: #ff80bf; font-weight: 700; }
-        .highlight-green { color: #80ffb2; font-weight: 700; }
+        /* Tracking Dots */
+        .dot {
+            position: absolute; width: 10px; height: 10px; border-radius: 50%;
+            transform: translate(-50%, -50%); z-index: 4; display: none;
+        }
+        #dot-left-index, #dot-left-thumb { background: #ff3385; box-shadow: 0 0 8px #ff3385; }
+        #dot-right-index, #dot-right-thumb { background: #33cc66; box-shadow: 0 0 8px #33cc66; }
+
+        .pink-text { color: #ff66a3; }
+        .green-text { color: #66ff99; }
 
         #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-size: 16px;
-            font-weight: 300;
-            letter-spacing: 3px;
-            z-index: 20;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(10px);
-            padding: 30px 40px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
-            text-align: center;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; z-index: 20;
         }
-        
-        .spinner {
-            margin-top: 15px;
-            width: 30px; height: 30px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top-color: #ff80bf;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div id="loading">
-        INITIALIZING AI VISION<br>
-        <span style="font-size: 11px; opacity: 0.6; display: block; margin-top: 8px;">Please allow camera access</span>
-        <div class="spinner"></div>
-    </div>
+    <div id="loading">Starting AI Tracking... (Please allow camera)</div>
 
-    <!-- UI Elements -->
+    <!-- UI Panel -->
     <div id="debug-panel">
-        <div>Bloom <span id="bloom-val">0.00</span></div>
-        <div>Growth <span id="grow-val">0.00</span></div>
+        <div class="val-row">Bloom: <span id="val-bloom">0.00</span></div>
+        <div class="val-row">Grow: <span id="val-grow">0.00</span></div>
+        <div class="val-row">Wind: <span id="val-wind">0.00</span></div>
     </div>
     
-    <div id="label-left" class="finger-label"><span class="highlight">🌸 Bloom</span> (Left Hand)</div>
-    <div id="label-right" class="finger-label"><span class="highlight-green">🌱 Grow</span> (Right Hand)</div>
+    <!-- Finger Labels -->
+    <div id="label-left" class="finger-label"><span class="pink-text">🌸 Left Hand:</span> Bloom</div>
+    <div id="label-right" class="finger-label"><span class="green-text">🌱 Right Hand:</span> Grow</div>
 
-    <!-- Video & Shadows -->
+    <!-- Finger Dots -->
+    <div id="dot-left-index" class="dot"></div><div id="dot-left-thumb" class="dot"></div>
+    <div id="dot-right-index" class="dot"></div><div id="dot-right-thumb" class="dot"></div>
+
+    <!-- Video, SVG Lines & 3D Canvas -->
     <video class="input_video" autoplay playsinline></video>
-    <div id="vignette"></div>
+    
+    <svg id="svg-layer">
+        <line id="line-left" stroke="#ff3385" stroke-width="2" stroke-dasharray="6,6" x1="0" y1="0" x2="0" y2="0" display="none" />
+        <line id="line-right" stroke="#33cc66" stroke-width="2" stroke-dasharray="6,6" x1="0" y1="0" x2="0" y2="0" display="none" />
+    </svg>
+
     <div id="canvas-container"></div>
 
     <script>
-        // --- 1. SETUP PREMIUM THREE.JS SCENE ---
+        // --- 1. SETUP THREE.JS SCENE ---
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 3, 12); // Pulled back for bouquet
+        camera.position.set(0, 3, 15);
 
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio); // Sharper on retina screens
         container.appendChild(renderer.domElement);
 
-        // Premium Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(5, 10, 7);
-        scene.add(dirLight);
+        const pointLight = new THREE.PointLight(0xffffff, 0.8);
+        pointLight.position.set(5, 10, 5);
+        scene.add(pointLight);
 
-        const fillLight = new THREE.PointLight(0xff80bf, 0.5, 20); // Pinkish fill light
-        fillLight.position.set(-5, 3, 5);
-        scene.add(fillLight);
+        // --- 2. BUILD THE BRANCHING PLANT ---
+        const plantBase = new THREE.Group();
+        plantBase.position.y = -5; // Start near bottom
+        scene.add(plantBase);
 
-        // --- 2. BUILD THE BOUQUET ---
-        const bouquetGroup = new THREE.Group();
-        bouquetGroup.position.y = -3; // Start below screen
-        scene.add(bouquetGroup);
-
-        // Premium Materials
-        const stemMat = new THREE.MeshPhysicalMaterial({ 
-            color: 0x2e5c3a, roughness: 0.6, metalness: 0.1, clearcoat: 0.2
-        });
-        
-        const centerMat = new THREE.MeshPhysicalMaterial({ 
-            color: 0xffb700, roughness: 0.9, metalness: 0.1
-        });
-        
-        const petalMat = new THREE.MeshPhysicalMaterial({ 
-            color: 0xff66a3, 
-            roughness: 0.2, 
-            metalness: 0.1,
-            clearcoat: 0.8, // Gives that premium glossy look
-            transparent: true,
+        // Materials (Neon glowing look)
+        const stemMat = new THREE.MeshPhongMaterial({ color: 0x33cc33, shininess: 100 });
+        const flowerMat = new THREE.MeshStandardMaterial({ 
+            color: 0xff1a75, 
+            emissive: 0xcc0052, 
+            emissiveIntensity: 0.8,
+            transparent: true, 
             opacity: 0.9,
-            side: THREE.DoubleSide
+            roughness: 0.2
         });
 
-        // Store all petals across all flowers to animate them easily
-        const allPetals = []; 
+        // Main Stem
+        const stemGeo = new THREE.CylinderGeometry(0.06, 0.12, 10, 16);
+        stemGeo.translate(0, 5, 0); // Move pivot to bottom
+        const mainStem = new THREE.Mesh(stemGeo, stemMat);
+        plantBase.add(mainStem);
 
-        function createFlower(offsetX, offsetY, offsetZ, rotationX, rotationZ, scale) {
-            const flower = new THREE.Group();
-            flower.position.set(offsetX, offsetY, offsetZ);
-            flower.rotation.set(rotationX, 0, rotationZ);
-            flower.scale.set(scale, scale, scale);
+        const allFlowerClusters = []; // Keep track to animate bloom
+
+        // Function to create puffy flower clusters
+        function createFlowerCluster(parent, yPos, xRot, zRot) {
+            const cluster = new THREE.Group();
+            cluster.position.y = yPos;
+            cluster.rotation.set(xRot, 0, zRot);
             
-            // Stem
-            const stemGeo = new THREE.CylinderGeometry(0.04, 0.08, 6, 12);
-            stemGeo.translate(0, 3, 0); // Pivot at bottom
-            const stem = new THREE.Mesh(stemGeo, stemMat);
-            flower.add(stem);
+            // Create overlapping spheres to match the video's puffy flowers
+            const sphereGeo = new THREE.SphereGeometry(0.5, 32, 32);
+            const positions = [
+                [0, 0, 0], [0.3, 0.3, 0], [-0.3, 0.3, 0], 
+                [0, 0.3, 0.3], [0, 0.3, -0.3], [0, 0.6, 0]
+            ];
 
-            // Flower Head (Group for petals and center)
-            const headGroup = new THREE.Group();
-            headGroup.position.y = 6.0;
-            stem.add(headGroup);
+            positions.forEach(pos => {
+                const petal = new THREE.Mesh(sphereGeo, flowerMat);
+                petal.position.set(...pos);
+                // Squish spheres slightly to look like petals
+                petal.scale.set(1, 1.2, 0.8);
+                cluster.add(petal);
+            });
 
-            // Center
-            const centerGeo = new THREE.SphereGeometry(0.35, 32, 16);
-            centerGeo.scale(1, 0.4, 1);
-            const center = new THREE.Mesh(centerGeo, centerMat);
-            headGroup.add(center);
-
-            // Petals
-            const numPetals = 8;
-            const petalGeo = new THREE.CylinderGeometry(0.1, 0.3, 2, 16);
-            petalGeo.translate(0, 1, 0); // Pivot at base of petal
-            
-            for(let i=0; i<numPetals; i++) {
-                const petal = new THREE.Mesh(petalGeo, petalMat);
-                
-                // Arrange in a circle
-                const angle = (i / numPetals) * Math.PI * 2;
-                petal.rotation.y = angle;
-                
-                // Set initial closed state (pointing up)
-                petal.rotation.z = 0.2; 
-                
-                // Store original rotations to use in animation math
-                petal.userData = {
-                    baseRotY: angle,
-                    closedAngle: 0.2,    // Pointing straight up
-                    openAngle: 1.4       // Laying flat/open
-                };
-
-                headGroup.add(petal);
-                allPetals.push(petal); // Save to master array
-            }
-            
-            bouquetGroup.add(flower);
+            parent.add(cluster);
+            allFlowerClusters.push(cluster);
         }
 
-        // Generate 7 Flowers for the Bouquet
-        // Center flower
-        createFlower(0, 0, 0, 0, 0, 1.1); 
-        // Surrounding flowers (angled outward)
-        createFlower(1.2, -0.5, 1, 0.2, -0.2, 0.9);
-        createFlower(-1.2, -0.5, 1, 0.2, 0.2, 0.9);
-        createFlower(1.5, -0.8, -0.5, -0.1, -0.3, 0.8);
-        createFlower(-1.5, -0.8, -0.5, -0.1, 0.3, 0.8);
-        createFlower(0, -1, 1.8, 0.4, 0, 0.85);
-        createFlower(0, -1, -1.5, -0.3, 0, 0.85);
+        // Function to add branches
+        function addBranch(yOffset, length, rotZ) {
+            const branchGroup = new THREE.Group();
+            branchGroup.position.y = yOffset;
+            branchGroup.rotation.z = rotZ;
+
+            const branchGeo = new THREE.CylinderGeometry(0.03, 0.06, length, 8);
+            branchGeo.translate(0, length/2, 0);
+            const branch = new THREE.Mesh(branchGeo, stemMat);
+            branchGroup.add(branch);
+
+            createFlowerCluster(branchGroup, length, 0, -rotZ); // Straighten flower
+            mainStem.add(branchGroup);
+        }
+
+        // Top main flower
+        createFlowerCluster(mainStem, 10, 0, 0);
+        
+        // Add side branches (similar to the video structure)
+        addBranch(3, 3, 0.8);
+        addBranch(5, 2.5, -0.7);
+        addBranch(7, 2, 0.9);
+        addBranch(2, 3.5, -0.9);
 
 
-        // --- 3. MEDIAPIPE AI SETUP ---
-        const videoElement = document.getElementsByClassName('input_video')[0];
-        const labelLeft = document.getElementById('label-left');
-        const labelRight = document.getElementById('label-right');
-        const valBloom = document.getElementById('bloom-val');
-        const valGrow = document.getElementById('grow-val');
-        const loadingBox = document.getElementById('loading');
-
-        let targetGrow = 0;
-        let targetBloom = 0;
+        // --- 3. MEDIAPIPE AI SETUP & PINCH LOGIC ---
+        const videoElement = document.querySelector('.input_video');
+        const lineLeft = document.getElementById('line-left');
+        const lineRight = document.getElementById('line-right');
+        
+        // Target values for smooth Lerping
+        let targetGrow = 0.1;
+        let targetBloom = 0.1;
         let currentGrow = 0.1;
         let currentBloom = 0.1;
+        let windTime = 0;
+
+        function updateUI(handType, indexX, indexY, thumbX, thumbY, distance) {
+            // Convert normalized coordinates to screen pixels
+            const iX = indexX * window.innerWidth;
+            const iY = indexY * window.innerHeight;
+            const tX = thumbX * window.innerWidth;
+            const tY = thumbY * window.innerHeight;
+
+            // Map pinch distance (0.02 is closed, 0.2 is wide open)
+            // Clamp value between 0.05 and 1.0 for 3D scaling
+            let mappedVal = Math.max(0.05, Math.min(1, (distance - 0.02) / 0.18));
+
+            if (handType === 'Right') {
+                targetGrow = mappedVal;
+                
+                // Update Lines & Dots
+                lineRight.setAttribute('x1', iX); lineRight.setAttribute('y1', iY);
+                lineRight.setAttribute('x2', tX); lineRight.setAttribute('y2', tY);
+                lineRight.style.display = 'block';
+                
+                document.getElementById('dot-right-index').style.cssText = `display:block; left:${iX}px; top:${iY}px;`;
+                document.getElementById('dot-right-thumb').style.cssText = `display:block; left:${tX}px; top:${tY}px;`;
+                
+                // Update Label near index finger
+                const lblRight = document.getElementById('label-right');
+                lblRight.style.display = 'block';
+                lblRight.style.left = `${iX}px`; lblRight.style.top = `${iY}px`;
+
+            } else {
+                targetBloom = mappedVal;
+
+                lineLeft.setAttribute('x1', iX); lineLeft.setAttribute('y1', iY);
+                lineLeft.setAttribute('x2', tX); lineLeft.setAttribute('y2', tY);
+                lineLeft.style.display = 'block';
+                
+                document.getElementById('dot-left-index').style.cssText = `display:block; left:${iX}px; top:${iY}px;`;
+                document.getElementById('dot-left-thumb').style.cssText = `display:block; left:${tX}px; top:${tY}px;`;
+
+                const lblLeft = document.getElementById('label-left');
+                lblLeft.style.display = 'block';
+                lblLeft.style.left = `${iX}px`; lblLeft.style.top = `${iY}px`;
+            }
+        }
 
         function onResults(results) {
-            if(loadingBox.style.display !== 'none') loadingBox.style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
 
-            let leftFound = false;
-            let rightFound = false;
+            // Reset UI visibility each frame
+            lineLeft.style.display = 'none'; lineRight.style.display = 'none';
+            document.getElementById('label-left').style.display = 'none';
+            document.getElementById('label-right').style.display = 'none';
+            document.querySelectorAll('.dot').forEach(el => el.style.display = 'none');
 
-            if (results.multiHandLandmarks && results.multiHandedness) {
+            if (results.multiHandLandmarks) {
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                     const landmarks = results.multiHandLandmarks[i];
                     const handType = results.multiHandedness[i].label; 
                     
-                    const indexFinger = landmarks[8]; // Index tip
-                    
-                    const screenX = indexFinger.x * window.innerWidth;
-                    const screenY = indexFinger.y * window.innerHeight;
+                    const index = landmarks[8];
+                    const thumb = landmarks[4];
 
-                    // Clamped height value (0 to 1)
-                    const heightValue = Math.max(0, Math.min(1, 1.2 - indexFinger.y));
+                    // Calculate 2D distance between index and thumb (Pinch)
+                    const dist = Math.hypot(index.x - thumb.x, index.y - thumb.y);
 
-                    if (handType === 'Right') {
-                        rightFound = true;
-                        labelRight.style.display = 'block';
-                        labelRight.style.left = `${screenX}px`;
-                        labelRight.style.top = `${screenY}px`;
-                        targetGrow = heightValue;
-                    } else {
-                        leftFound = true;
-                        labelLeft.style.display = 'block';
-                        labelLeft.style.left = `${screenX}px`;
-                        labelLeft.style.top = `${screenY}px`;
-                        targetBloom = heightValue;
-                    }
+                    updateUI(handType, index.x, index.y, thumb.x, thumb.y, dist);
                 }
             }
-            
-            // Hide labels if hand leaves screen
-            if(!leftFound) labelLeft.style.display = 'none';
-            if(!rightFound) labelRight.style.display = 'none';
         }
 
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-        }});
-        
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({
             maxNumHands: 2,
             modelComplexity: 1,
@@ -335,51 +283,44 @@
         hands.onResults(onResults);
 
         const cameraFeed = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
-            width: 1280,
-            height: 720
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 1280, height: 720
         });
         cameraFeed.start();
 
 
-        // --- 4. SMOOTH ANIMATION LOOP ---
+        // --- 4. ANIMATION & LERPING (Buttery Smooth) ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // THE FIX: Heavy Lerp (0.04) prevents all lag and jitter
-            currentGrow += (targetGrow - currentGrow) * 0.04;
-            currentBloom += (targetBloom - currentBloom) * 0.04;
+            // Lerp handles the smooth, jitter-free lag effect
+            currentGrow += (targetGrow - currentGrow) * 0.1;
+            currentBloom += (targetBloom - currentBloom) * 0.1;
 
-            // Update UI
-            valGrow.innerText = currentGrow.toFixed(2);
-            valBloom.innerText = currentBloom.toFixed(2);
+            // 1. Grow Plant (Uniform scale based on Right Hand pinch)
+            plantBase.scale.set(currentGrow, currentGrow, currentGrow);
 
-            // 1. GROW LOGIC (Scale the whole bouquet)
-            const bouquetScale = 0.1 + (currentGrow * 1.2); 
-            bouquetGroup.scale.set(bouquetScale, bouquetScale, bouquetScale);
-            
-            // 2. BLOOM LOGIC (Rotate individual petals smoothly)
-            allPetals.forEach(petal => {
-                // Interpolate between closed angle and open angle based on hand height
-                const targetZ = petal.userData.closedAngle + (currentBloom * (petal.userData.openAngle - petal.userData.closedAngle));
-                petal.rotation.z = targetZ;
-                
-                // Add a tiny bit of curling down when fully open for realism
-                petal.rotation.x = currentBloom * 0.3; 
+            // 2. Bloom Flowers (Scale clusters based on Left Hand pinch)
+            // Offset a tiny bit so they don't invert or disappear completely
+            const bloomScale = Math.max(0.01, currentBloom * 1.5);
+            allFlowerClusters.forEach(cluster => {
+                cluster.scale.set(bloomScale, bloomScale, bloomScale);
             });
 
-            // Gentle idle floating animation
-            const time = Date.now() * 0.001;
-            bouquetGroup.rotation.y = Math.sin(time * 0.5) * 0.1;
-            bouquetGroup.position.x = Math.sin(time * 0.3) * 0.2;
+            // 3. Gentle Wind Effect
+            windTime += 0.02;
+            const windNoise = Math.sin(windTime) * 0.05;
+            plantBase.rotation.z = windNoise; // Plant swaying
+            
+            // Update UI Numbers
+            document.getElementById('val-bloom').innerText = currentBloom.toFixed(2);
+            document.getElementById('val-grow').innerText = currentGrow.toFixed(2);
+            document.getElementById('val-wind').innerText = Math.abs(windNoise * 100).toFixed(2);
 
             renderer.render(scene, camera);
         }
         animate();
 
-        // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
