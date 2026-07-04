@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Hand Tracking Flower</title>
+    <title>Premium AI Bouquet</title>
     
     <!-- Load Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -13,15 +13,18 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
+    <!-- Premium Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #111;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #050505;
+            font-family: 'Inter', sans-serif;
         }
 
-        /* Mirrored webcam background */
+        /* Mirrored webcam background with a premium dark vignette */
         .input_video {
             position: absolute;
             top: 0;
@@ -31,49 +34,71 @@
             object-fit: cover;
             transform: scaleX(-1);
             z-index: 1;
-            opacity: 0.8;
+            opacity: 0.5;
+            filter: grayscale(30%) contrast(1.2);
+        }
+
+        #vignette {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle, transparent 40%, #000 120%);
+            z-index: 2;
+            pointer-events: none;
         }
 
         /* 3D Canvas */
         #canvas-container {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 2;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 3;
             pointer-events: none;
         }
 
-        /* UI Overlays */
+        /* Glassmorphism UI */
         #debug-panel {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            border: 1px solid #444;
-            color: #ff66b2;
-            padding: 15px;
-            border-radius: 8px;
+            top: 30px;
+            left: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 20px 25px;
+            border-radius: 16px;
             z-index: 10;
-            font-family: monospace;
-            font-size: 14px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 11px;
+            font-weight: 500;
         }
+
+        #debug-panel div { margin-bottom: 8px; }
+        #debug-panel div:last-child { margin-bottom: 0; }
+        #debug-panel span { font-weight: 700; color: #ff80bf; float: right; margin-left: 20px;}
 
         .finger-label {
             position: absolute;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
             color: #fff;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
             pointer-events: none;
             z-index: 10;
-            display: none; /* Hidden until hands are detected */
+            display: none;
             transform: translate(-50%, -150%);
-            border: 1px solid #ff66b2;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             white-space: nowrap;
+            transition: opacity 0.3s;
         }
+
+        .highlight { color: #ff80bf; font-weight: 700; }
+        .highlight-green { color: #80ffb2; font-weight: 700; }
 
         #loading {
             position: absolute;
@@ -81,96 +106,169 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 24px;
+            font-size: 16px;
+            font-weight: 300;
+            letter-spacing: 3px;
             z-index: 20;
-            background: rgba(0,0,0,0.8);
-            padding: 20px;
-            border-radius: 10px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            padding: 30px 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
         }
+        
+        .spinner {
+            margin-top: 15px;
+            width: 30px; height: 30px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #ff80bf;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <!-- Loading Screen -->
-    <div id="loading">Allow Camera Access & Loading AI Models...</div>
+    <div id="loading">
+        INITIALIZING AI VISION<br>
+        <span style="font-size: 11px; opacity: 0.6; display: block; margin-top: 8px;">Please allow camera access</span>
+        <div class="spinner"></div>
+    </div>
 
     <!-- UI Elements -->
     <div id="debug-panel">
-        <div>Bloom: <span id="bloom-val">0.00</span></div>
-        <div>Grow: <span id="grow-val">0.00</span></div>
-        <div>Noise: <span id="noise-val">3.15</span></div>
+        <div>Bloom <span id="bloom-val">0.00</span></div>
+        <div>Growth <span id="grow-val">0.00</span></div>
     </div>
     
-    <div id="label-left" class="finger-label">🌸 Left Hand: Bloom</div>
-    <div id="label-right" class="finger-label">🌱 Right Hand: Grow</div>
+    <div id="label-left" class="finger-label"><span class="highlight">🌸 Bloom</span> (Left Hand)</div>
+    <div id="label-right" class="finger-label"><span class="highlight-green">🌱 Grow</span> (Right Hand)</div>
 
-    <!-- Video & 3D Canvas -->
+    <!-- Video & Shadows -->
     <video class="input_video" autoplay playsinline></video>
+    <div id="vignette"></div>
     <div id="canvas-container"></div>
 
     <script>
-        // --- 1. SETUP THREE.JS (The 3D Flower) ---
+        // --- 1. SETUP PREMIUM THREE.JS SCENE ---
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
         
-        // Setup Camera & Renderer
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 2, 8);
+        camera.position.set(0, 3, 12); // Pulled back for bouquet
+
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio); // Sharper on retina screens
         container.appendChild(renderer.domElement);
 
-        // Add Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Premium Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
+        
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(5, 10, 5);
+        dirLight.position.set(5, 10, 7);
         scene.add(dirLight);
 
-        // Create Procedural Flower
-        const flowerGroup = new THREE.Group();
-        flowerGroup.position.y = -2; // Start at bottom of screen
-        scene.add(flowerGroup);
+        const fillLight = new THREE.PointLight(0xff80bf, 0.5, 20); // Pinkish fill light
+        fillLight.position.set(-5, 3, 5);
+        scene.add(fillLight);
 
-        // Stem
-        const stemGeo = new THREE.CylinderGeometry(0.05, 0.08, 4);
-        stemGeo.translate(0, 2, 0); // Move pivot to bottom
-        const stemMat = new THREE.MeshPhongMaterial({ color: 0x228B22 });
-        const stem = new THREE.Mesh(stemGeo, stemMat);
-        flowerGroup.add(stem);
+        // --- 2. BUILD THE BOUQUET ---
+        const bouquetGroup = new THREE.Group();
+        bouquetGroup.position.y = -3; // Start below screen
+        scene.add(bouquetGroup);
 
-        // Petals Group (attached to top of stem)
-        const petalsGroup = new THREE.Group();
-        petalsGroup.position.y = 4;
-        stem.add(petalsGroup);
-
-        // Center of flower
-        const centerGeo = new THREE.SphereGeometry(0.3, 16, 16);
-        const centerMat = new THREE.MeshPhongMaterial({ color: 0xffdd00 });
-        const center = new THREE.Mesh(centerGeo, centerMat);
-        petalsGroup.add(center);
-
-        // Create Petals
-        const petalGeo = new THREE.SphereGeometry(0.4, 16, 16);
-        petalGeo.scale(1, 0.2, 1.5); // Flatten sphere into petal shape
-        const petalMat = new THREE.MeshPhongMaterial({ 
-            color: 0xff1493, 
-            transparent: true, 
-            opacity: 0.8 
+        // Premium Materials
+        const stemMat = new THREE.MeshPhysicalMaterial({ 
+            color: 0x2e5c3a, roughness: 0.6, metalness: 0.1, clearcoat: 0.2
+        });
+        
+        const centerMat = new THREE.MeshPhysicalMaterial({ 
+            color: 0xffb700, roughness: 0.9, metalness: 0.1
+        });
+        
+        const petalMat = new THREE.MeshPhysicalMaterial({ 
+            color: 0xff66a3, 
+            roughness: 0.2, 
+            metalness: 0.1,
+            clearcoat: 0.8, // Gives that premium glossy look
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide
         });
 
-        const numPetals = 6;
-        for(let i=0; i<numPetals; i++) {
-            const petal = new THREE.Mesh(petalGeo, petalMat);
-            const angle = (i / numPetals) * Math.PI * 2;
-            petal.position.x = Math.cos(angle) * 0.4;
-            petal.position.z = Math.sin(angle) * 0.4;
-            petal.rotation.y = -angle;
-            petal.rotation.x = 0.2; // Angle them slightly up
-            petalsGroup.add(petal);
+        // Store all petals across all flowers to animate them easily
+        const allPetals = []; 
+
+        function createFlower(offsetX, offsetY, offsetZ, rotationX, rotationZ, scale) {
+            const flower = new THREE.Group();
+            flower.position.set(offsetX, offsetY, offsetZ);
+            flower.rotation.set(rotationX, 0, rotationZ);
+            flower.scale.set(scale, scale, scale);
+            
+            // Stem
+            const stemGeo = new THREE.CylinderGeometry(0.04, 0.08, 6, 12);
+            stemGeo.translate(0, 3, 0); // Pivot at bottom
+            const stem = new THREE.Mesh(stemGeo, stemMat);
+            flower.add(stem);
+
+            // Flower Head (Group for petals and center)
+            const headGroup = new THREE.Group();
+            headGroup.position.y = 6.0;
+            stem.add(headGroup);
+
+            // Center
+            const centerGeo = new THREE.SphereGeometry(0.35, 32, 16);
+            centerGeo.scale(1, 0.4, 1);
+            const center = new THREE.Mesh(centerGeo, centerMat);
+            headGroup.add(center);
+
+            // Petals
+            const numPetals = 8;
+            const petalGeo = new THREE.CylinderGeometry(0.1, 0.3, 2, 16);
+            petalGeo.translate(0, 1, 0); // Pivot at base of petal
+            
+            for(let i=0; i<numPetals; i++) {
+                const petal = new THREE.Mesh(petalGeo, petalMat);
+                
+                // Arrange in a circle
+                const angle = (i / numPetals) * Math.PI * 2;
+                petal.rotation.y = angle;
+                
+                // Set initial closed state (pointing up)
+                petal.rotation.z = 0.2; 
+                
+                // Store original rotations to use in animation math
+                petal.userData = {
+                    baseRotY: angle,
+                    closedAngle: 0.2,    // Pointing straight up
+                    openAngle: 1.4       // Laying flat/open
+                };
+
+                headGroup.add(petal);
+                allPetals.push(petal); // Save to master array
+            }
+            
+            bouquetGroup.add(flower);
         }
 
-        // --- 2. SETUP MEDIAPIPE (AI Hand Tracking) ---
+        // Generate 7 Flowers for the Bouquet
+        // Center flower
+        createFlower(0, 0, 0, 0, 0, 1.1); 
+        // Surrounding flowers (angled outward)
+        createFlower(1.2, -0.5, 1, 0.2, -0.2, 0.9);
+        createFlower(-1.2, -0.5, 1, 0.2, 0.2, 0.9);
+        createFlower(1.5, -0.8, -0.5, -0.1, -0.3, 0.8);
+        createFlower(-1.5, -0.8, -0.5, -0.1, 0.3, 0.8);
+        createFlower(0, -1, 1.8, 0.4, 0, 0.85);
+        createFlower(0, -1, -1.5, -0.3, 0, 0.85);
+
+
+        // --- 3. MEDIAPIPE AI SETUP ---
         const videoElement = document.getElementsByClassName('input_video')[0];
         const labelLeft = document.getElementById('label-left');
         const labelRight = document.getElementById('label-right');
@@ -178,45 +276,38 @@
         const valGrow = document.getElementById('grow-val');
         const loadingBox = document.getElementById('loading');
 
-        // Target values for smooth animation
         let targetGrow = 0;
         let targetBloom = 0;
-        let currentGrow = 0.1; // Start tiny
+        let currentGrow = 0.1;
         let currentBloom = 0.1;
 
         function onResults(results) {
-            // Hide loading screen once AI is running
-            if(loadingBox.style.display !== 'none') {
-                loadingBox.style.display = 'none';
-            }
+            if(loadingBox.style.display !== 'none') loadingBox.style.display = 'none';
 
-            labelLeft.style.display = 'none';
-            labelRight.style.display = 'none';
+            let leftFound = false;
+            let rightFound = false;
 
             if (results.multiHandLandmarks && results.multiHandedness) {
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                     const landmarks = results.multiHandLandmarks[i];
-                    const handType = results.multiHandedness[i].label; // "Left" or "Right"
+                    const handType = results.multiHandedness[i].label; 
                     
-                    // Landmark 8 is the tip of the Index Finger
-                    const indexFinger = landmarks[8];
+                    const indexFinger = landmarks[8]; // Index tip
                     
-                    // Convert normalized coordinates to screen pixels for labels
                     const screenX = indexFinger.x * window.innerWidth;
                     const screenY = indexFinger.y * window.innerHeight;
 
-                    // Calculate a value based on how high the finger is (0 at bottom, 1 at top)
-                    // We clamp it so it doesn't go crazy
-                    const heightValue = Math.max(0, Math.min(1, 1 - indexFinger.y));
+                    // Clamped height value (0 to 1)
+                    const heightValue = Math.max(0, Math.min(1, 1.2 - indexFinger.y));
 
                     if (handType === 'Right') {
-                        // Right Hand controls Growth
+                        rightFound = true;
                         labelRight.style.display = 'block';
                         labelRight.style.left = `${screenX}px`;
                         labelRight.style.top = `${screenY}px`;
                         targetGrow = heightValue;
                     } else {
-                        // Left Hand controls Bloom
+                        leftFound = true;
                         labelLeft.style.display = 'block';
                         labelLeft.style.left = `${screenX}px`;
                         labelLeft.style.top = `${screenY}px`;
@@ -224,6 +315,10 @@
                     }
                 }
             }
+            
+            // Hide labels if hand leaves screen
+            if(!leftFound) labelLeft.style.display = 'none';
+            if(!rightFound) labelRight.style.display = 'none';
         }
 
         const hands = new Hands({locateFile: (file) => {
@@ -233,9 +328,9 @@
         hands.setOptions({
             maxNumHands: 2,
             modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-            selfieMode: true // Matches the mirrored webcam CSS
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6,
+            selfieMode: true
         });
         hands.onResults(onResults);
 
@@ -248,31 +343,37 @@
         });
         cameraFeed.start();
 
-        // --- 3. ANIMATION LOOP ---
+
+        // --- 4. SMOOTH ANIMATION LOOP ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Smoothly interpolate current values towards target values (Lerp)
-            currentGrow += (targetGrow - currentGrow) * 0.1;
-            currentBloom += (targetBloom - currentBloom) * 0.1;
+            // THE FIX: Heavy Lerp (0.04) prevents all lag and jitter
+            currentGrow += (targetGrow - currentGrow) * 0.04;
+            currentBloom += (targetBloom - currentBloom) * 0.04;
 
-            // Update UI Debug Panel
+            // Update UI
             valGrow.innerText = currentGrow.toFixed(2);
             valBloom.innerText = currentBloom.toFixed(2);
 
-            // Apply to 3D Flower:
+            // 1. GROW LOGIC (Scale the whole bouquet)
+            const bouquetScale = 0.1 + (currentGrow * 1.2); 
+            bouquetGroup.scale.set(bouquetScale, bouquetScale, bouquetScale);
             
-            // 1. Grow stem (Y scale)
-            const mappedScale = 0.2 + (currentGrow * 1.5); // Min scale 0.2, Max 1.7
-            stem.scale.set(1, mappedScale, 1);
-            
-            // 2. Bloom petals (overall scale of petals group)
-            const mappedBloom = 0.1 + (currentBloom * 1.5); // Min scale 0.1, Max 1.6
-            petalsGroup.scale.set(mappedBloom, mappedBloom, mappedBloom);
+            // 2. BLOOM LOGIC (Rotate individual petals smoothly)
+            allPetals.forEach(petal => {
+                // Interpolate between closed angle and open angle based on hand height
+                const targetZ = petal.userData.closedAngle + (currentBloom * (petal.userData.openAngle - petal.userData.closedAngle));
+                petal.rotation.z = targetZ;
+                
+                // Add a tiny bit of curling down when fully open for realism
+                petal.rotation.x = currentBloom * 0.3; 
+            });
 
-            // Add gentle floating animation
-            flowerGroup.rotation.y += 0.005;
-            flowerGroup.position.x = Math.sin(Date.now() * 0.001) * 0.2;
+            // Gentle idle floating animation
+            const time = Date.now() * 0.001;
+            bouquetGroup.rotation.y = Math.sin(time * 0.5) * 0.1;
+            bouquetGroup.position.x = Math.sin(time * 0.3) * 0.2;
 
             renderer.render(scene, camera);
         }
